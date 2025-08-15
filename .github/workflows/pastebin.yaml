@@ -1,0 +1,29 @@
+name: Upload to Pastebin
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'installer.lua'
+
+jobs:
+  upload-to-pastebin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+          
+      - name: Install dependencies
+        run: npm install axios form-data
+        
+      - name: Upload to Pastebin
+        run: |
+          node .github/scripts/pastebin-upload.js
+        env:
+          PASTEBIN_API_KEY: ${{ secrets.PASTEBIN_API_KEY }}
+          PASTEBIN_USER_KEY: ''
