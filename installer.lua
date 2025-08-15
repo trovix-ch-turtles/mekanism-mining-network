@@ -25,6 +25,7 @@ local function displayHeader()
   print("This installer will set up your turtle/computer")
   print("for the Mekanism Mining Network system.")
   print("")
+  print("")
 end
 
 -- Function to select a part
