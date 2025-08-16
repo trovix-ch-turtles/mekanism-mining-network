@@ -1,12 +1,10 @@
 -- Mekanism Mining Hub Control Script (Simplified)
 -- Central control system for managing multiple mining turtles
 -- Requires: Advanced Computer + Monitor + Ender Modem
-
+local common = require("lib.common")
 -- Configuration
 local CHANNEL = 1337  -- Communication channel for turtle network
 local HUB_ID = "MINING_HUB"
-local MONITOR_SIDE = "left"  -- Side where monitor is attached
-local MODEM_SIDE = "right"   -- Side where ender modem is attached
 local DATA_FILE = "hub_data.json"  -- File to store turtle data
 local SAVE_INTERVAL = 30  -- Save data every 30 seconds
 local AUTO_NAME_PREFIX = "MINER"  -- Prefix for auto-generated names
@@ -19,6 +17,8 @@ local detailsExpanded = false  -- Whether details are currently shown
 local lastSave = 0  -- Track last save time
 local monitor = nil
 local modem = nil
+local MONITOR_SIDE = nil  -- Will be detected automatically
+local MODEM_SIDE = nil    -- Will be detected automatically
 local running = true
 
 -- Colors for UI (using global colors API)
@@ -186,30 +186,32 @@ end
 function initializeHardware()
     print("Initializing hardware...")
     
-    -- Setup monitor
-    if peripheral.isPresent(MONITOR_SIDE) then
+    -- Auto-detect monitor
+    MONITOR_SIDE = common.findPeripheral("monitor")
+    if MONITOR_SIDE then
         monitor = peripheral.wrap(MONITOR_SIDE)
         if monitor then
             monitor.setTextScale(1.0)  -- Larger text (was 0.5)
-            print("✓ Monitor connected")
+            print("✓ Monitor connected on " .. MONITOR_SIDE .. " side")
         else
             error("Failed to wrap monitor")
         end
     else
-        error("No monitor found on " .. MONITOR_SIDE .. " side")
+        error("No monitor found on any side")
     end
     
-    -- Setup modem
-    if peripheral.isPresent(MODEM_SIDE) then
+    -- Auto-detect modem
+    MODEM_SIDE = common.findPeripheral("modem")
+    if MODEM_SIDE then
         modem = peripheral.wrap(MODEM_SIDE)
         if modem then
             modem.open(CHANNEL)
-            print("✓ Ender modem connected on channel " .. CHANNEL)
+            print("✓ Ender modem connected on " .. MODEM_SIDE .. " side")
         else
             error("Failed to wrap modem")
         end
     else
-        error("No ender modem found on " .. MODEM_SIDE .. " side")
+        error("No ender modem found on any side")
     end
     
     print("Hardware initialization complete!")
