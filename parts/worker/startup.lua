@@ -895,43 +895,21 @@ local function startMiningOperation()
       print("Setup failed! Stopping operation.")
       break
     end
+
+    -- Update hub with waiting state
+    hubComm.updateStatus("waiting", cycleCount, "waiting_for_miner_start") 
+    hubComm.log("Waiting for player to activate the Digital Miner")
     
+    print("Please right-click the Digital Miner and activate it manually.")
+    print("Ensure it's configured correctly with the right mining area.")
+    print("Press any key after activating the miner...")
+    os.pullEvent("key")
+
     -- Phase 2: Wait for mining operation to complete by monitoring miner state
     print("Phase 2: Mining in progress (monitoring miner state)...")
     hubComm.updateStatus("online", cycleCount, "mining")
     hubComm.log("Mining in progress")
 
-    local success, data = turtle.inspectUp()
-    
-     -- Check if miner activated properly
-    if not data.state or not data.state.active then
-      print("Error: Digital miner is not active! It needs manual activation.")
-      hubComm.log("Miner needs manual activation by player")
-      
-      -- Update hub with waiting state
-      hubComm.updateStatus("waiting", cycleCount, "waiting_for_miner_start") 
-      hubComm.log("Waiting for player to activate the Digital Miner")
-      
-      print("Please right-click the Digital Miner and activate it manually.")
-      print("Ensure it's configured correctly with the right mining area.")
-      print("Press any key after activating the miner...")
-      os.pullEvent("key")
-
-      -- Verify miner is now active after key press
-      success, data = turtle.inspectUp()
-      
-      if success and data and data.name == ITEMS.DIGITAL_MINER and data.state and data.state.active then
-          print("Digital miner is now active! Monitoring operation...")
-          hubComm.updateStatus("online", cycleCount, "mining")
-          hubComm.log("Digital miner successfully activated by player")
-      else
-          print("Miner still not active. Continuing anyway...")
-          hubComm.log("WARNING: Proceeding without confirmed miner activation")
-      end
-    end
-    
-    print("Digital miner active and running!")
-    
     -- Monitor the miner until it completes
     local waitTime = TEST_MODE and 5 or 50000
     local startTime = os.clock()
