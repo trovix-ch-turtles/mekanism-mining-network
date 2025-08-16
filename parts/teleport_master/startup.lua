@@ -167,9 +167,9 @@ local function placeTeleporter(minerLabel)
     end
   end
   
-  -- Pull teleporter from chest
-  local item = chest.pushItems("turtle", slot, 1)
-  if item == 0 then
+  -- Pull teleporter from chest to turtle slot 1
+  local pulled = chest.pullItems(CHEST_SIDE, slot, 1, 1)
+  if pulled == 0 then
     print("Failed to pull teleporter from chest")
     return false
   end
