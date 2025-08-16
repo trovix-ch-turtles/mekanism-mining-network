@@ -264,7 +264,7 @@ local function monitorMinerStatus(minerLabel, minerId)
       timestamp = os.clock()
     }
     
-    modem.transmit(HUB_CHANNEL, os.getComputerID(), textutils.serialise(message))
+    modem.transmit(hub_comm.channel, os.getComputerID(), textutils.serialise(message))
     
     -- Wait for response or timeout
     local timer = os.startTimer(POLL_INTERVAL)
@@ -276,7 +276,7 @@ local function monitorMinerStatus(minerLabel, minerId)
       if event == "modem_message" then
         local side, channel, replyChannel, message, distance = p1, p2, p3, p4, p5
         
-        if channel == HUB_CHANNEL then
+        if channel == hub_comm.channel then
           local data = textutils.unserialise(message)
           if data and data.type == "miner_status_response" and data.minerId == minerId then
             -- Check if miner is no longer waiting
@@ -299,7 +299,7 @@ local function processHubMessages()
   while true do
     local event, side, channel, replyChannel, message, distance = os.pullEvent("modem_message")
     
-    if channel == HUB_CHANNEL then
+    if channel == hub_comm.channel then
       local data = textutils.unserialise(message)
       if not data then
         -- Invalid message
