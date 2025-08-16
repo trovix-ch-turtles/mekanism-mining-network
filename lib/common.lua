@@ -33,6 +33,11 @@ local CHANNELS = {
   HEARTBEAT = "heartbeat"
 }
 
+-- Common item names
+local ITEMS = {
+  ENDER_CHEST = "enderstorage:ender_chest"
+}
+
 -- Find a peripheral by type on any side
 local function findPeripheral(peripheralType)
   local sides = {"left", "right", "top", "bottom", "front", "back"}
