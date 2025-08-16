@@ -261,6 +261,11 @@ function handleTurtleMessage(message, senderId)
     elseif data.type == "status_update" then
         -- Status update from existing turtle
         if turtles[senderId] then
+            -- Store previous status and phase to detect changes
+            local prevStatus = turtles[senderId].status
+            local prevPhase = turtles[senderId].phase
+            
+            -- Update turtle data
             turtles[senderId].status = data.status or "online"
             turtles[senderId].cycle = data.cycle or 0
             turtles[senderId].fuel = data.fuel or 0
@@ -269,6 +274,19 @@ function handleTurtleMessage(message, senderId)
             turtles[senderId].y = data.y or turtles[senderId].y
             turtles[senderId].z = data.z or turtles[senderId].z
             turtles[senderId].lastSeen = os.clock()
+            
+            -- Broadcast status change ONLY when it's related to waiting for miner start
+            if (prevPhase ~= "waiting_for_miner_start" and turtles[senderId].phase == "waiting_for_miner_start") or
+                (prevPhase == "waiting_for_miner_start" and turtles[senderId].phase ~= "waiting_for_miner_start") then
+                modem.transmit(CHANNEL, CHANNEL, textutils.serialise({
+                    type = "miner_status_update",
+                    id = senderId,
+                    label = turtles[senderId].label,
+                    status = turtles[senderId].status,
+                    phase = turtles[senderId].phase,
+                    timestamp = os.clock()
+                }))
+            end
         end
         
     elseif data.type == "log" then
@@ -280,6 +298,45 @@ function handleTurtleMessage(message, senderId)
         if turtles[senderId] then
             turtles[senderId].lastSeen = os.clock()
         end
+    elseif data.type == "request_waiting_miners" then
+        -- Get a list of all waiting miners
+        local waitingMiners = {}
+        for id, turtle in pairs(turtles) do
+            if turtle.status == "waiting" and turtle.phase == "waiting_for_miner_start" then
+                table.insert(waitingMiners, {
+                    id = id,
+                    label = turtle.label
+                })
+            end
+        end
+        
+        -- Send response back to the requesting turtle
+        modem.transmit(CHANNEL, senderId, textutils.serialise({
+            type = "waiting_miners_response",
+            miners = waitingMiners,
+            timestamp = os.clock()
+        }))
+        
+    elseif data.type == "request_miner_status" then
+        -- Get status for a specific miner
+        local minerId = data.minerId
+        local response = {
+            type = "miner_status_response",
+            minerId = minerId,
+            timestamp = os.clock()
+        }
+        
+        if turtles[minerId] then
+            response.status = turtles[minerId].status
+            response.phase = turtles[minerId].phase
+            response.label = turtles[minerId].label
+        else
+            response.status = "unknown"
+            response.phase = "unknown"
+        end
+        
+        -- Send response back to the requesting turtle
+        modem.transmit(CHANNEL, senderId, textutils.serialise(response))
     end
 end
 
