@@ -36,7 +36,7 @@ local uiColors = {
 }
 
 -- Turtle data structure with pairing support
-function createTurtleEntry(id, label, x, y, z)
+function createTurtleEntry(id, label, x, y, z, computerType)
     return {
         id = id,
         label = label or ("Turtle_" .. id),
@@ -51,9 +51,10 @@ function createTurtleEntry(id, label, x, y, z)
         phase = "unknown",
         inventory = {},
         customData = {},  -- Store custom data from turtle
-        turtleType = "worker",  -- "worker" or "companion"
+        turtleType = computerType or "worker",  -- Use the provided computerType
         pairedWith = nil,  -- ID of paired turtle
-        needsCompanion = false  -- Whether this turtle needs a companion
+        needsCompanion = false,  -- Whether this turtle needs a companion
+        isHidden = computerType == "teleport_master"  -- Hide teleport masters from main display
     }
 end
 
@@ -238,23 +239,33 @@ function handleTurtleMessage(message, senderId)
     if not data then return end
     
     if data.type == "register" then
-        -- Generate auto-name for the turtle
-        local assignedName = AUTO_NAME_PREFIX .. autoNameCounter
-        autoNameCounter = autoNameCounter + 1  -- Increment counter
+        local computerType = data.computerType or "worker"
+        local assignedName = ""
+        
+        -- Use different naming scheme based on computer type
+        if computerType == "teleport_master" then
+            assignedName = "TELEPORT_MASTER"
+        else
+            -- Regular miner naming scheme
+            assignedName = AUTO_NAME_PREFIX .. autoNameCounter
+            autoNameCounter = autoNameCounter + 1  -- Increment counter only for miners
+        end
         
         -- New turtle registration
         turtles[senderId] = createTurtleEntry(
             senderId,
-            assignedName,  -- Use the assigned name instead of data.label
-            data.x, data.y, data.z
+            assignedName,
+            data.x, data.y, data.z,
+            computerType  -- Pass the computer type to createTurtleEntry
         )
-        addTurtleLog(senderId, "Turtle registered with hub and assigned name: " .. assignedName)
+        
+        addTurtleLog(senderId, computerType .. " registered with hub as: " .. assignedName)
         
         -- Send acknowledgment with assigned name
         modem.transmit(CHANNEL, CHANNEL, textutils.serialise({
             type = "register_ack",
             hubId = HUB_ID,
-            assignedName = assignedName,  -- Send assigned name to turtle
+            assignedName = assignedName,
             timestamp = os.clock()
         }))
         
@@ -442,6 +453,16 @@ function drawTurtleList()
     end
     
     local sortedTurtles = getSortedTurtles()
+    
+    -- Filter out hidden turtles
+    local visibleTurtles = {}
+    for _, entry in ipairs(sortedTurtles) do
+        local turtle = entry.turtle
+        if not turtle.isHidden then
+            table.insert(visibleTurtles, entry)
+        end
+    end
+    sortedTurtles = visibleTurtles
     
     if #sortedTurtles == 0 then
         monitor.setTextColor(uiColors.warning)

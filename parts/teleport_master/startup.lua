@@ -7,7 +7,6 @@ local hubComm = require("lib.hub_comm")
 
 -- Configuration
 local POLL_INTERVAL = 5  -- How often to check for waiting miners (seconds)
-local FUEL_THRESHOLD = 1000  -- Minimum fuel level before refueling
 
 -- State tracking
 local currentMiner = nil     -- Current miner we're servicing
@@ -264,7 +263,9 @@ local function monitorMinerStatus(minerLabel, minerId)
       timestamp = os.clock()
     }
     
-    modem.transmit(hub_comm.channel, os.getComputerID(), textutils.serialise(message))
+    -- Fixed: Use proper hubComm reference
+    local modem = peripheral.wrap(hubComm.modemSide)
+    modem.transmit(hubComm.channel, os.getComputerID(), textutils.serialise(message))
     
     -- Wait for response or timeout
     local timer = os.startTimer(POLL_INTERVAL)
@@ -276,7 +277,7 @@ local function monitorMinerStatus(minerLabel, minerId)
       if event == "modem_message" then
         local side, channel, replyChannel, message, distance = p1, p2, p3, p4, p5
         
-        if channel == hub_comm.channel then
+        if channel == hubComm.channel then
           local data = textutils.unserialise(message)
           if data and data.type == "miner_status_response" and data.minerId == minerId then
             -- Check if miner is no longer waiting
@@ -299,7 +300,7 @@ local function processHubMessages()
   while true do
     local event, side, channel, replyChannel, message, distance = os.pullEvent("modem_message")
     
-    if channel == hub_comm.channel then
+    if channel == hubComm.channel then
       local data = textutils.unserialise(message)
       if not data then
         -- Invalid message
@@ -345,36 +346,9 @@ local function processHubMessages()
   end
 end
 
--- Check fuel levels and refuel if needed
-local function checkFuel()
-  if turtle.getFuelLevel() < FUEL_THRESHOLD then
-    print("Fuel level low, attempting to refuel...")
-    
-    -- If we have a teleporter placed, remove it first
-    if teleporterPlaced then
-      print("Temporarily removing teleporter for refueling")
-      removeTeleporter()
-    end
-    
-    -- Use common library's refueling function
-    if common.checkAndRefuel(FUEL_THRESHOLD) then
-      print("Refueling successful")
-      return true
-    else
-      print("WARNING: Failed to refuel")
-      return false
-    end
-  end
-  
-  return true  -- Fuel level is fine
-end
-
 -- Main loop to manage teleporters for waiting miners
 local function manageTeleporters()
   while true do
-    -- Check fuel periodically
-    checkFuel()
-    
     -- Get fresh list of waiting miners if we don't have any
     if #waitingMiners == 0 then
       waitingMiners = getWaitingMiners()
@@ -405,13 +379,7 @@ end
 local function main()
   print("=== Teleport Master ===")
   print("This turtle manages teleporters for miners waiting to be activated")
-  
-  -- Initialize peripherals
-  if not initPeripherals() then
-    error("Failed to initialize peripherals")
-    return
-  end
-  
+
   -- Initialize hub communication
   if not hubComm.initialize() then
     print("Warning: Could not initialize hub communication")
@@ -419,10 +387,10 @@ local function main()
     print("Hub communication initialized!")
   end
   
-  -- Check fuel levels
-  print("Checking fuel levels...")
-  if not checkFuel() then
-    print("WARNING: Low fuel and unable to refuel. Continuing anyway.")
+  -- Initialize peripherals
+  if not initPeripherals() then
+    error("Failed to initialize peripherals")
+    return
   end
   
   -- Register with hub
