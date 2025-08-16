@@ -1,6 +1,6 @@
 -- Miner with Mekanism Mining Setup
 local common = require("lib.common")
-local hubClient = require("hub_client")
+local hubComm = require("lib.hub_comm") -- Changed from hub_client to lib.hub_comm
 
 -- State
 local position = {x = nil, y = nil, z = nil}
@@ -38,15 +38,15 @@ print("Found modem on " .. modemSide .. " side")
 rednet.open(modemSide)
 
 -- Initialize hub connection
-if not hubClient.initialize() then
+if not hubComm.initialize() then
   print("Warning: Could not initialize hub connection")
 else
   -- Register with hub
-  if not hubClient.register() then
+  if not hubComm.register("worker") then
     print("Warning: Failed to register with hub")
   else
     -- Log successful registration
-    hubClient.log("Miner initialized and registered with hub")
+    hubComm.log("Miner initialized and registered with hub")
   end
 end
 
@@ -151,8 +151,8 @@ local function waitForBuddy()
   print("Waiting for buddy to connect...")
   
   -- Update hub with no buddy status
-  hubClient.setBuddyStatus(false)
-  hubClient.log("Looking for a buddy turtle")
+  hubComm.setBuddyStatus(false)
+  hubComm.log("Looking for a buddy turtle")
   
   -- Continuously broadcast availability and listen for buddies
   local isConnected = false
@@ -180,8 +180,8 @@ local function waitForBuddy()
           print("Buddy connected with ID: " .. buddyId)
           
           -- Update hub that we found a buddy
-          hubClient.setBuddyStatus(true)
-          hubClient.log("Connected with buddy turtle ID: " .. buddyId)
+          hubComm.setBuddyStatus(true)
+          hubComm.log("Connected with buddy turtle ID: " .. buddyId)
           
           -- Wait for buddy to get in position
           print("Waiting for buddy to get in position...")
@@ -197,13 +197,13 @@ local function waitForBuddy()
               if readyId == buddyId and readyProtocol == common.CHANNELS.COMMAND and 
                  readyMessage.type == common.EVENTS.BUDDY_READY then
                 print("Buddy is in position and ready!")
-                hubClient.log("Buddy is in position and ready")
+                hubComm.log("Buddy is in position and ready")
                 readyReceived = true
                 isConnected = true
               end
             elseif readyEvent == "timer" and readyParam1 == readyTimer then
               print("Timed out waiting for buddy to get ready")
-              hubClient.log("Timed out waiting for buddy to get ready")
+              hubComm.log("Timed out waiting for buddy to get ready")
               break -- Exit the ready wait loop but not the connection loop
             end
           end
@@ -427,7 +427,7 @@ end
 
 -- Function to check if slot 1 has fuel and refuel if needed
 local function checkAndRefuelSlot1()
-  -- Check if slot 1 is empty
+  -- Check if slot 1 is empty or has fuel
   turtle.select(1)
   local slot1Item = turtle.getItemDetail(1)
   
@@ -436,92 +436,23 @@ local function checkAndRefuelSlot1()
     return common.refuelFromEnderChest(FUEL_THRESHOLD)
   else
     print("Slot 1 has fuel: " .. slot1Item.name .. " (x" .. slot1Item.count .. ")")
-    -- Refuel from what we have in slot 1
-    turtle.select(1)
-    local fuelValue = turtle.refuel(0)  -- Check if it's fuel
-    if fuelValue then
+    -- Check if what's in slot 1 is fuel
+    if turtle.refuel(0) then  -- Returns true if item can be fuel
       turtle.refuel()  -- Consume all fuel in slot 1
       print("Refueled from existing fuel in slot 1")
-    end
-    return true
-  end
-end
-
--- Function to refuel using ender chest (modified for front placement)
-local function refuelFromEnderChest()
-  print("Starting refuel sequence...")
-  
-  -- Clear space in front if needed
-  if turtle.detect() then
-    turtle.dig()
-  end
-  
-  -- Place ender chest in front
-  if not selectItem(ITEMS.ENDER_CHEST) then
-    print("Error: Could not find ender chest")
-    return false
-  end
-  
-  if not turtle.place() then
-    print("Error: Could not place ender chest in front")
-    return false
-  end
-  
-  print("Ender chest placed in front")
-  
-  -- Access the ender chest inventory to fill slot 1
-  print("Accessing ender chest for fuel...")
-  
-  turtle.select(1)  -- Ensure we're working with slot 1
-  local success = false
-  
-  -- Try to find and take fuel from ender chest
-  for slot = 1, 27 do  -- Ender chest has 27 slots
-    if turtle.suck(64) then  -- Try to take up to 64 items from front
-      local item = turtle.getItemDetail(1)
-      if item then
-        -- Check if this is fuel using boolean return
-        if turtle.refuel(0) then  -- Returns true if item can be fuel
-          print("Found fuel item: " .. item.name .. " (x" .. item.count .. ")")
-          success = true
-          break
-        else
-          -- Not fuel, put it back
-          turtle.drop()
-          print("Item " .. item.name .. " is not fuel, putting back")
-        end
-      end
+      return true
+    else
+      print("Item in slot 1 is not fuel. Trying ender chest...")
+      return common.refuelFromEnderChest(FUEL_THRESHOLD)
     end
   end
-  
-  if not success then
-    print("Error: No fuel found in ender chest!")
-    -- Remove ender chest and return failure
-    turtle.dig()
-    return false
-  end
-  
-  -- Remove ender chest
-  turtle.dig()
-  print("Ender chest removed")
-  
-  -- Now fully refuel from slot 1
-  turtle.select(1)
-  local beforeFuel = turtle.getFuelLevel()
-  turtle.refuel()  -- Consume all fuel items in slot 1
-  local afterFuel = turtle.getFuelLevel()
-  
-  print("Refueled: " .. beforeFuel .. " → " .. afterFuel .. " fuel")
-  print("Refueling sequence complete!")
-  
-  return true
 end
 
 -- Main placement routine
 local function setupMiningNetwork()
   print("Starting Mekanism mining setup...")
-  hubClient.updateStatus("online", cycleCount, "starting_cycle")
-  hubClient.log("Starting mining cycle " .. cycleCount)
+  hubComm.updateStatus("online", cycleCount, "starting_cycle")
+  hubComm.log("Starting mining cycle " .. cycleCount)
   
   -- Step 1: Place digital miner above starting position
   print("Step 1: Placing digital miner...")
@@ -650,8 +581,8 @@ local function setupMiningNetwork()
     return false
   end
   
-  hubClient.updateStatus("online", cycleCount, "setup")
-  hubClient.log("Setting up mining network")
+  hubComm.updateStatus("online", cycleCount, "setup")
+  hubComm.log("Setting up mining network")
   
   print("Mining setup complete!")
   return true
@@ -660,8 +591,8 @@ end
 -- Function to clean up the mining network by retracing steps and digging up
 local function cleanupMiningNetwork()
   print("Starting cleanup sequence...")
-  hubClient.updateStatus("online", cycleCount, "cleanup")
-  hubClient.log("Cleaning up mining network")
+  hubComm.updateStatus("online", cycleCount, "cleanup")
+  hubComm.log("Cleaning up mining network")
   
   -- Notify buddy that cleanup is starting (they should check fuel)
   if buddyId then
@@ -841,8 +772,8 @@ local function moveToNext()
   -- Movement phase complete
   isMoving = false
   print("Reached next mining location!")
-  hubClient.updateStatus("online", cycleCount, "moving")
-  hubClient.log("Moving to next location")
+  hubComm.updateStatus("online", cycleCount, "moving")
+  hubComm.log("Moving to next location")
   return true
 end
 
@@ -891,25 +822,25 @@ end
 -- Create a command handler function
 local function handleHubCommand(command)
   print("Received command from hub: " .. command)
-  hubClient.log("Received command: " .. command)
+  hubComm.log("Received command: " .. command)
   
   if command == "pause_mining" then
     -- Implement pause logic
-    hubClient.updateStatus("paused", cycleCount, "paused")
-    hubClient.log("Mining paused by hub command")
+    hubComm.updateStatus("paused", cycleCount, "paused")
+    hubComm.log("Mining paused by hub command")
     
   elseif command == "resume_mining" then
     -- Implement resume logic
-    hubClient.updateStatus("online", cycleCount, currentPhase)
-    hubClient.log("Mining resumed by hub command")
+    hubComm.updateStatus("online", cycleCount, currentPhase)
+    hubComm.log("Mining resumed by hub command")
     
   elseif command == "emergency_stop" then
     -- Implement emergency stop
-    hubClient.updateStatus("stopped", cycleCount, "emergency_stopped")
-    hubClient.log("EMERGENCY STOP by hub command")
+    hubComm.updateStatus("stopped", cycleCount, "emergency_stopped")
+    hubComm.log("EMERGENCY STOP by hub command")
     
   else
-    hubClient.log("Unknown command: " .. command)
+    hubComm.log("Unknown command: " .. command)
   end
 end
 
@@ -919,13 +850,13 @@ local function processHubEvents()
     local event, param1, param2, param3, param4, param5 = os.pullEvent()
     
     -- Process heartbeat timers
-    if hubClient.processEvents(event, param1) then
+    if hubComm.processEvents(event, param1) then
       -- Heartbeat was processed
     end
     
     -- Process hub commands
     if event == "modem_message" then
-      hubClient.listenForCommands(event, param1, param2, param3, param4, handleHubCommand)
+      hubComm.listenForCommands(event, param1, param2, param3, param4, handleHubCommand)
     end
   end
 end
@@ -967,17 +898,17 @@ local function startMiningOperation()
     
     -- Phase 2: Wait for mining operation to complete by monitoring miner state
     print("Phase 2: Mining in progress (monitoring miner state)...")
-    hubClient.updateStatus("online", cycleCount, "mining")
-    hubClient.log("Mining in progress")
+    hubComm.updateStatus("online", cycleCount, "mining")
+    hubComm.log("Mining in progress")
     
      -- Check if miner activated properly
     if not data.state or not data.state.active then
       print("Error: Digital miner is not active! It needs manual activation.")
-      hubClient.log("Miner needs manual activation by player")
+      hubComm.log("Miner needs manual activation by player")
       
       -- Update hub with waiting state
-      hubClient.updateStatus("waiting", cycleCount, "waiting_for_miner_start") 
-      hubClient.log("Waiting for player to activate the Digital Miner")
+      hubComm.updateStatus("waiting", cycleCount, "waiting_for_miner_start") 
+      hubComm.log("Waiting for player to activate the Digital Miner")
       
       print("Please right-click the Digital Miner and activate it manually.")
       print("Ensure it's configured correctly with the right mining area.")
@@ -988,11 +919,11 @@ local function startMiningOperation()
       success, data = turtle.inspectUp()
       if success and data and data.name == ITEMS.DIGITAL_MINER and data.state and data.state.active then
           print("Digital miner is now active! Monitoring operation...")
-          hubClient.updateStatus("online", cycleCount, "mining")
-          hubClient.log("Digital miner successfully activated by player")
+          hubComm.updateStatus("online", cycleCount, "mining")
+          hubComm.log("Digital miner successfully activated by player")
       else
           print("Miner still not active. Continuing anyway...")
-          hubClient.log("WARNING: Proceeding without confirmed miner activation")
+          hubComm.log("WARNING: Proceeding without confirmed miner activation")
       end
     end
     
@@ -1023,7 +954,7 @@ local function startMiningOperation()
             -- Require 3 consecutive inactive readings to be sure it's done
             if inactiveConfirmations >= 3 then
               print("Digital miner has completed its operation!")
-              hubClient.log("Mining operation completed naturally")
+              hubComm.log("Mining operation completed naturally")
               break
             end
           else
@@ -1033,7 +964,7 @@ local function startMiningOperation()
             -- Log status occasionally
             if math.floor((os.clock() - startTime) / 60) % 5 == 0 then
               -- Log every 5 minutes
-              hubClient.log("Mining in progress - " .. math.floor((os.clock() - startTime) / 60) .. " minutes elapsed")
+              hubComm.log("Mining in progress - " .. math.floor((os.clock() - startTime) / 60) .. " minutes elapsed")
             end
           end
         else
@@ -1090,14 +1021,14 @@ local function main()
   end
   
   -- Initialize hub connection
-  if not hubClient.initialize() then
+  if not hubComm.initialize() then
     print("Warning: Could not initialize hub connection")
   else
     -- Register with hub
-    if not hubClient.register() then
+    if not hubComm.register("worker") then
       print("Warning: Failed to register with hub")
     else
-      hubClient.log("Miner initialized and registered with hub")
+      hubComm.log("Miner initialized and registered with hub")
     end
   end
 
@@ -1110,13 +1041,13 @@ local function main()
   -- Connect with buddy
   if not waitForBuddy() then
     print("Failed to connect with buddy. Mining operation cannot continue.")
-    hubClient.log("Failed to connect with buddy. Mining operation aborted.")
+    hubComm.log("Failed to connect with buddy. Mining operation aborted.")
     return
   end
   
   -- Run the mining operation in parallel with heartbeat and event handling
   print("Starting mining operation...")
-  hubClient.log("Starting mining operation")
+  hubComm.log("Starting mining operation")
   
   parallel.waitForAny(
     startMiningOperation,    -- This is your main mining function
@@ -1127,13 +1058,13 @@ local function main()
         local event, param1, param2, param3, param4, param5 = os.pullEvent()
         
         -- Process heartbeat timers for hub
-        if hubClient.processEvents(event, param1) then
+        if hubComm.processEvents(event, param1) then
           -- Heartbeat was processed
         end
         
         -- Process hub commands
         if event == "modem_message" then
-          hubClient.listenForCommands(event, param1, param2, param3, param4, handleHubCommand)
+          hubComm.listenForCommands(event, param1, param2, param3, param4, handleHubCommand)
         end
       end
     end,
