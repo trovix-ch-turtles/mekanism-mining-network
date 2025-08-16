@@ -13,71 +13,6 @@ local currentMiner = nil     -- Current miner we're servicing
 local waitingMiners = {}     -- List of miners waiting for activation
 local teleporterPlaced = false
 
--- Initialize peripherals
-local chest = nil
-local CHEST_SIDE = nil   -- Will be detected automatically
-
--- Find peripherals
-local function initPeripherals()
-  print("Initializing peripherals...")
-  
-  -- Find chest (check all sides except top which is reserved for teleporter)
-  local chestSides = {"left", "right", "front", "back", "bottom"}
-  local inventoryTypes = {"minecraft:chest", "minecraft:barrel", "minecraft:shulker_box", 
-                         "ironchest:", "enderstorage:", "storagedrawers:", "mekanism:"}
-  
-  -- First try the common library's peripheral finder
-  CHEST_SIDE = common.findPeripheral("chest")
-  
-  -- If that didn't work, try a more comprehensive search
-  if not CHEST_SIDE then
-    for _, side in ipairs(chestSides) do
-      if peripheral.isPresent(side) then
-        local perType = peripheral.getType(side)
-        
-        -- Check if it's a known inventory type
-        local isInventory = false
-        for _, invType in ipairs(inventoryTypes) do
-          if perType:find(invType) or perType:find("inventory") then
-            isInventory = true
-            break
-          end
-        end
-        
-        if isInventory then
-          CHEST_SIDE = side
-          print("Found inventory on " .. side .. " side: " .. perType)
-          break
-        end
-      end
-    end
-  else
-    print("Found chest on " .. CHEST_SIDE .. " side")
-  end
-  
-  -- Wrap the peripheral and verify it works
-  if CHEST_SIDE then
-    chest = peripheral.wrap(CHEST_SIDE)
-    
-    -- Verify that this is a working inventory by checking for required methods
-    if not chest.list or not chest.size then
-      print("Warning: Peripheral on " .. CHEST_SIDE .. " does not appear to be a valid inventory")
-      chest = nil
-    else
-      print("Connected to inventory with " .. chest.size() .. " slots")
-    end
-  end
-  
-  -- Final check if we have a working chest
-  if not chest then
-    print("ERROR: No inventory found! Please place a chest adjacent to the turtle.")
-    print("The chest must not be on the top side (that's reserved for teleporters).")
-    return false
-  end
-  
-  return true
-end
-
 -- Request list of waiting miners from hub - custom function needed
 local function getWaitingMiners()
   print("Requesting waiting miners from hub...")
@@ -114,21 +49,19 @@ local function getWaitingMiners()
   end
 end
 
--- Find a teleporter for a specific miner in the chest
+-- Find a teleporter for a specific miner in the turtle's inventory
 local function findTeleporterForMiner(minerLabel)
   print("Looking for teleporter for: " .. minerLabel)
   
-  -- Get all items in chest
-  local items = chest.list()
-  
-  for slot, item in pairs(items) do
-    -- Get detailed info for this item
-    local detail = chest.getItemDetail(slot)
+  -- Check all inventory slots
+  for slot = 1, 16 do
+    turtle.select(slot)
+    local item = turtle.getItemDetail()
     
     -- Check if it's a teleporter with the right name
-    if detail and detail.name == "mekanism:teleporter" then
+    if item and item.name == "mekanism:teleporter" then
       -- Check if the display name matches what we need
-      if detail.displayName and detail.displayName:find(minerLabel) then
+      if item.displayName and item.displayName:find(minerLabel) then
         print("Found teleporter for " .. minerLabel .. " in slot " .. slot)
         return slot
       end
@@ -149,7 +82,7 @@ local function placeTeleporter(minerLabel)
     end
   end
   
-  -- Find teleporter in chest
+  -- Find teleporter in inventory
   local slot = findTeleporterForMiner(minerLabel)
   if not slot then
     print("ERROR: Teleporter for " .. minerLabel .. " is missing!")
@@ -167,22 +100,8 @@ local function placeTeleporter(minerLabel)
     end
   end
   
-  -- Pull teleporter from chest
-  local chestName = peripheral.getName(chest)
-  local item = chest.pullItems(chestName, slot, 1, 1)
-
-  if item == 0 then
-    print("Failed to pull teleporter from chest")
-    return false
-  end
-  
-  -- Select slot 1 and check if item is there
-  turtle.select(1)
-  local teleporter = turtle.getItemDetail(1)
-  if not teleporter or teleporter.name ~= "mekanism:teleporter" then
-    print("Error: Teleporter not found in turtle inventory")
-    return false
-  end
+  -- Select the teleporter
+  turtle.select(slot)
   
   -- Clear space above if needed
   if turtle.detectUp() then
@@ -193,8 +112,6 @@ local function placeTeleporter(minerLabel)
   -- Place teleporter
   if not turtle.placeUp() then
     print("Failed to place teleporter")
-    -- Put it back in chest
-    chest.pullItems("turtle", 1, 1)
     return false
   end
   
@@ -205,10 +122,26 @@ local function placeTeleporter(minerLabel)
   return true
 end
 
--- Remove teleporter and put it back in chest
+-- Remove teleporter and put it back in inventory
 local function removeTeleporter()
   if not teleporterPlaced then
     return true
+  end
+  
+  -- Select an empty slot if possible
+  local emptySlot = nil
+  for slot = 1, 16 do
+    if turtle.getItemCount(slot) == 0 then
+      emptySlot = slot
+      break
+    end
+  end
+  
+  if emptySlot then
+    turtle.select(emptySlot)
+  else
+    -- If no empty slot, use slot 1
+    turtle.select(1)
   end
   
   -- Dig up teleporter
@@ -222,8 +155,7 @@ local function removeTeleporter()
   os.sleep(0.5)
   
   -- Check if we got the teleporter
-  turtle.select(1)
-  local item = turtle.getItemDetail(1)
+  local item = turtle.getItemDetail()
   if not item or item.name ~= "mekanism:teleporter" then
     print("Warning: Teleporter not found in inventory after digging")
     teleporterPlaced = false
@@ -231,21 +163,7 @@ local function removeTeleporter()
     return false
   end
   
-  -- Put teleporter back in chest
-  local pushed = 0
-  for slot = 1, chest.size() do
-    pushed = chest.pullItems("turtle", 1, 1, slot)
-    if pushed > 0 then
-      break
-    end
-  end
-  
-  if pushed == 0 then
-    print("Error: Couldn't put teleporter back in chest")
-    return false
-  end
-  
-  print("Removed teleporter and returned it to chest")
+  print("Removed teleporter and returned it to inventory")
   hubComm.log("Removed teleporter for " .. (currentMiner or "unknown miner"))
   teleporterPlaced = false
   currentMiner = nil
@@ -387,12 +305,6 @@ local function main()
     print("Warning: Could not initialize hub communication")
   else
     print("Hub communication initialized!")
-  end
-  
-  -- Initialize peripherals
-  if not initPeripherals() then
-    error("Failed to initialize peripherals")
-    return
   end
   
   -- Register with hub
