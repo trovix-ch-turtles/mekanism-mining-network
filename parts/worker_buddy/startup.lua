@@ -74,7 +74,7 @@ local function checkInventory()
 end
 
 -- Function to handle command messages
-local function handleCommand(message
+local function handleCommand(message)
   if message.type == common.EVENTS.CONNECTION_CHECK then
     rednet.send(minerId, {type = common.EVENTS.CONNECTION_RESPONSE}, common.CHANNELS.COMMAND)
     print("Responded to connection check")
