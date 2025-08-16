@@ -902,8 +902,27 @@ local function startMiningOperation()
     
     print("Please right-click the Digital Miner and activate it manually.")
     print("Ensure it's configured correctly with the right mining area.")
-    print("Press any key after activating the miner...")
-    os.pullEvent("key")
+    print("Waiting for miner activation...")
+    
+    -- Wait for miner to be activated
+    local activated = false
+    while not activated do
+      local success, data = turtle.inspectUp()
+      
+      if success and data and data.name == ITEMS.DIGITAL_MINER then
+        if data.state and data.state.active == true then
+          print("Digital Miner activated! Continuing...")
+          hubComm.log("Digital Miner activated automatically detected")
+          activated = true
+        else
+          print("Waiting for Digital Miner activation...")
+          os.sleep(3)
+        end
+      else
+        print("Warning: Cannot detect digital miner above!")
+        os.sleep(3)
+      end
+    end
 
     -- Phase 2: Wait for mining operation to complete by monitoring miner state
     print("Phase 2: Mining in progress (monitoring miner state)...")
