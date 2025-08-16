@@ -49,27 +49,32 @@ local function getWaitingMiners()
   end
 end
 
+-- helper function to normalize a string
+local function normalize(str)
+    -- lower case
+    str = string.lower(str)
+    -- remove all non-alphanumeric characters (keep only letters and numbers)
+    str = string.gsub(str, "%W", "")
+    return str
+end
+
 -- Find a teleporter for a specific miner in the turtle's inventory
 local function findTeleporterForMiner(minerLabel)
   print("Looking for teleporter for: " .. minerLabel)
   
   -- Check all inventory slots
   for slot = 1, 16 do
-    turtle.select(slot)
-    local item = turtle.getItemDetail()
-    
+    local item = turtle.getItemDetail(slot, true)
     -- Check if it's a teleporter with the right name
     if item and item.name == "mekanism:teleporter" then
+      print(minerLabel .. " - " .. (item.displayName or "unknown"))
       -- Check if the display name matches what we need
-      if item.displayName and item.displayName:find(minerLabel) then
+      if item.displayName and normalize(item.displayName) == normalize(minerLabel) then
         print("Found teleporter for " .. minerLabel .. " in slot " .. slot)
         return slot
       end
     end
   end
-  
-  print("No teleporter found for " .. minerLabel)
-  return nil
 end
 
 -- Place teleporter for a miner
