@@ -13,7 +13,8 @@ local PARTS = {
 local NEED_LIB = {
   worker = true,
   worker_buddy = true,
-  teleport_master = true
+  teleport_master = true,
+  hub = true
 }
 local CONFIG_FILE = ".mekanism_config"
 local UPDATE_FILE = "/update.lua"
