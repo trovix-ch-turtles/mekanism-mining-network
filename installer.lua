@@ -222,7 +222,7 @@ local function createUpdater()
 -- Simply run this file to update your installation
 
 -- Configuration
-local REPO_URL = "https://api.github.com/repos/trovix-ch-turtles/mekanism-mining-network/contents"
+local REPO_URL = "https://raw.githubusercontent.com/trovix-ch-turtles/mekanism-mining-network/main"
 local INSTALLER_PATH = "/installer.lua"
 
 -- Display header
@@ -235,6 +235,7 @@ print("")
 -- Download the installer
 print("Downloading latest installer...")
 local installerUrl = REPO_URL .. INSTALLER_PATH
+print("From URL: " .. installerUrl)
 local response = http.get(installerUrl)
 
 if not response then
