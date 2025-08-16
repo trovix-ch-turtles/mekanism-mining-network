@@ -900,6 +900,8 @@ local function startMiningOperation()
     print("Phase 2: Mining in progress (monitoring miner state)...")
     hubComm.updateStatus("online", cycleCount, "mining")
     hubComm.log("Mining in progress")
+
+    local success, data = turtle.inspectUp()
     
      -- Check if miner activated properly
     if not data.state or not data.state.active then
@@ -914,9 +916,10 @@ local function startMiningOperation()
       print("Ensure it's configured correctly with the right mining area.")
       print("Press any key after activating the miner...")
       os.pullEvent("key")
-      
+
       -- Verify miner is now active after key press
       success, data = turtle.inspectUp()
+      
       if success and data and data.name == ITEMS.DIGITAL_MINER and data.state and data.state.active then
           print("Digital miner is now active! Monitoring operation...")
           hubComm.updateStatus("online", cycleCount, "mining")
